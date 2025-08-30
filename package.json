@@ -1,0 +1,14 @@
+{
+  "name": "fantasync-pwa",
+  "version": "0.0.1",
+  "description": "Plataforma de gestión de partidas de rol asíncronas",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "keywords": [
+    "rol"
+  ],
+  "author": "Pablo Núñez Ruiz",
+  "license": "MIT"
+}
