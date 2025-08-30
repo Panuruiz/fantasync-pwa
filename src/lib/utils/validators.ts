@@ -73,7 +73,7 @@ export const createCharacterSchema = z.object({
     .string()
     .min(1, 'Character name is required')
     .max(50, 'Character name must be less than 50 characters'),
-  data: z.record(z.any()).default({}),
+  data: z.record(z.string(), z.any()).default({}),
 })
 
 // Type exports
