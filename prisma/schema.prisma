@@ -1,0 +1,181 @@
+// Fantasync PWA Database Schema
+// Configured for Supabase PostgreSQL with Row Level Security
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_URL")
+  schemas           = ["public", "auth"]
+  extensions        = [uuidOssp(map: "uuid-ossp"), pgcrypto, pgTrgm(map: "pg_trgm")]
+}
+
+// Core User Model - matches Supabase auth.users
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  username        String    @unique @db.VarChar(30)
+  avatarUrl       String?   @map("avatar_url")
+  theme           Theme     @default(SYSTEM)
+  fontSize        FontSize  @default(MEDIUM)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  profile         Profile?
+  ownedGames      Game[]    @relation("GameMaster")
+  gameParticipations GamePlayer[]
+  sentMessages    Message[] @relation("MessageSender")
+  characters      Character[]
+  
+  @@map("users")
+  @@schema("public")
+}
+
+// Extended profile information
+model Profile {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  bio             String?   @db.Text
+  preferences     Json      @default("{}")
+  timezone        String    @default("UTC") @db.VarChar(50)
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("profiles")
+  @@schema("public")
+}
+
+// Game sessions
+model Game {
+  id              String      @id @default(uuid()) @db.Uuid
+  title           String      @db.VarChar(100)
+  description     String?     @db.Text
+  system          GameSystem  @default(DND5E)
+  masterId        String      @map("master_id") @db.Uuid
+  isActive        Boolean     @default(true) @map("is_active")
+  maxPlayers      Int         @default(6) @map("max_players")
+  settings        Json        @default("{}")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  master          User        @relation("GameMaster", fields: [masterId], references: [id], onDelete: Cascade)
+  players         GamePlayer[]
+  messages        Message[]
+  characters      Character[]
+  
+  @@map("games")
+  @@schema("public")
+}
+
+// Game participation junction table
+model GamePlayer {
+  id              String      @id @default(uuid()) @db.Uuid
+  gameId          String      @map("game_id") @db.Uuid
+  playerId        String      @map("player_id") @db.Uuid
+  role            PlayerRole  @default(PLAYER)
+  joinedAt        DateTime    @default(now()) @map("joined_at")
+  isActive        Boolean     @default(true) @map("is_active")
+  
+  // Relations
+  game            Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player          User        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@unique([gameId, playerId])
+  @@map("game_players")
+  @@schema("public")
+}
+
+// Messages in game chat
+model Message {
+  id              String      @id @default(uuid()) @db.Uuid
+  gameId          String      @map("game_id") @db.Uuid
+  senderId        String      @map("sender_id") @db.Uuid
+  content         String      @db.Text
+  messageType     MessageType @default(TEXT) @map("message_type")
+  isPrivate       Boolean     @default(false) @map("is_private")
+  recipientId     String?     @map("recipient_id") @db.Uuid
+  diceRoll        Json?       @map("dice_roll")
+  attachmentUrl   String?     @map("attachment_url")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  editedAt        DateTime?   @map("edited_at")
+  
+  // Relations
+  game            Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  sender          User        @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@map("messages")
+  @@schema("public")
+}
+
+// Character sheets
+model Character {
+  id              String      @id @default(uuid()) @db.Uuid
+  gameId          String      @map("game_id") @db.Uuid
+  playerId        String      @map("player_id") @db.Uuid
+  name            String      @db.VarChar(50)
+  avatarUrl       String?     @map("avatar_url")
+  data            Json        @default("{}")  // Character sheet data as JSON
+  isActive        Boolean     @default(true) @map("is_active")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  game            Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player          User        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@unique([gameId, playerId, name])
+  @@map("characters")
+  @@schema("public")
+}
+
+// Enums
+enum Theme {
+  SYSTEM
+  LIGHT
+  DARK
+  
+  @@schema("public")
+}
+
+enum FontSize {
+  SMALL
+  MEDIUM
+  LARGE
+  
+  @@schema("public")
+}
+
+enum GameSystem {
+  DND5E
+  PATHFINDER
+  CALL_OF_CTHULHU
+  VAMPIRE
+  CUSTOM
+  
+  @@schema("public")
+}
+
+enum PlayerRole {
+  PLAYER
+  CO_MASTER
+  OBSERVER
+  
+  @@schema("public")
+}
+
+enum MessageType {
+  TEXT
+  DICE_ROLL
+  CHARACTER_ACTION
+  SYSTEM
+  IMAGE
+  
+  @@schema("public")
+}
