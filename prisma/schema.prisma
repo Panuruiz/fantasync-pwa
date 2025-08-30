@@ -32,6 +32,11 @@ model User {
   sentMessages    Message[] @relation("MessageSender")
   characters      Character[]
   
+  // Friend relationships
+  sentFriendRequests     FriendRelationship[] @relation("FriendRequester")
+  receivedFriendRequests FriendRelationship[] @relation("FriendReceiver")
+  presence              UserPresence?
+  
   @@map("users")
   @@schema("public")
 }
@@ -43,6 +48,9 @@ model Profile {
   bio             String?   @db.Text
   preferences     Json      @default("{}")
   timezone        String    @default("UTC") @db.VarChar(50)
+  privacy         Json      @default("{\"profileVisibility\":\"public\",\"showOnlineStatus\":true,\"allowFriendRequests\":true,\"showGameHistory\":true,\"allowDirectMessages\":true}")
+  notifications   Json      @default("{\"email\":{\"gameInvites\":true,\"friendRequests\":true,\"messages\":true,\"gameUpdates\":true,\"weeklyDigest\":false},\"push\":{\"enabled\":false,\"gameActivity\":true,\"mentions\":true,\"friendsOnline\":false}}")
+  display         Json      @default("{\"compactMode\":false,\"showAvatars\":true,\"animationsEnabled\":true,\"highContrast\":false}")
   
   // Relations
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -69,6 +77,7 @@ model Game {
   players         GamePlayer[]
   messages        Message[]
   characters      Character[]
+  currentlyPlaying UserPresence[]
   
   @@map("games")
   @@schema("public")
@@ -135,6 +144,41 @@ model Character {
   @@schema("public")
 }
 
+// Friend relationships
+model FriendRelationship {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  friendId    String        @map("friend_id") @db.Uuid
+  status      FriendStatus  @default(PENDING)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  acceptedAt  DateTime?     @map("accepted_at")
+  
+  // Relations
+  user        User          @relation("FriendRequester", fields: [userId], references: [id], onDelete: Cascade)
+  friend      User          @relation("FriendReceiver", fields: [friendId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, friendId])
+  @@map("friend_relationships")
+  @@schema("public")
+}
+
+// User presence tracking
+model UserPresence {
+  userId         String          @id @map("user_id") @db.Uuid
+  status         PresenceStatus  @default(OFFLINE)
+  lastSeen       DateTime        @default(now()) @map("last_seen")
+  currentGameId  String?         @map("current_game_id") @db.Uuid
+  statusMessage  String?         @map("status_message") @db.VarChar(100)
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  
+  // Relations
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentGame    Game?           @relation(fields: [currentGameId], references: [id], onDelete: SetNull)
+  
+  @@map("user_presence")
+  @@schema("public")
+}
+
 // Enums
 enum Theme {
   SYSTEM
@@ -176,6 +220,23 @@ enum MessageType {
   CHARACTER_ACTION
   SYSTEM
   IMAGE
+  
+  @@schema("public")
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+  
+  @@schema("public")
+}
+
+enum PresenceStatus {
+  ONLINE
+  AWAY
+  BUSY
+  OFFLINE
   
   @@schema("public")
 }
