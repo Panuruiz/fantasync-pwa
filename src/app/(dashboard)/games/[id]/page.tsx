@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getGameById } from '@/lib/api/games'
 import { getGameMessages } from '@/lib/api/messages'
@@ -8,7 +8,6 @@ import { useGameStore } from '@/stores/game-store'
 import { useUserStore } from '@/stores/user-store'
 import { useGameChannel } from '@/hooks/use-game-channel'
 import { useGamePresence } from '@/hooks/use-game-presence'
-import type { Game, ChatMessage } from '@/types/game'
 
 // Import components
 import GameLayout from '@/components/game/game-layout'
@@ -35,7 +34,8 @@ export default function GamePage() {
     messageHistory,
     setMessagesForGame,
     isChatOpen,
-    isPlayerListOpen 
+    isPlayerListOpen,
+    togglePlayerList
   } = useGameStore()
   
   const { id: userId } = useUserStore()
@@ -49,14 +49,10 @@ export default function GamePage() {
   const hasAccess = isGameMaster || isPlayer
 
   // Real-time hooks (only activate after we have access)
-  const { isConnected } = useGameChannel(hasAccess ? gameId : null)
+  useGameChannel(hasAccess ? gameId : null)
   useGamePresence(hasAccess ? gameId : null)
 
-  useEffect(() => {
-    loadGame()
-  }, [gameId])
-
-  const loadGame = async () => {
+  const loadGame = useCallback(async () => {
     try {
       setLoading(true)
       setCurrentGameLoading(true)
@@ -84,7 +80,11 @@ export default function GamePage() {
       setLoading(false)
       setCurrentGameLoading(false)
     }
-  }
+  }, [gameId, setCurrentGame, setCurrentGameLoading, setCurrentGameError, setError, setMessagesForGame])
+
+  useEffect(() => {
+    loadGame()
+  }, [loadGame])
 
   if (loading) {
     return (
