@@ -10,7 +10,7 @@ datasource db {
   provider          = "postgresql"
   url               = env("DATABASE_URL")
   directUrl         = env("DIRECT_URL")
-  schemas           = ["public", "auth"]
+  schemas           = ["public"]
   extensions        = [uuidOssp(map: "uuid-ossp"), pgcrypto, pgTrgm(map: "pg_trgm")]
 }
 
@@ -37,6 +37,10 @@ model User {
   receivedFriendRequests FriendRelationship[] @relation("FriendReceiver")
   presence              UserPresence?
   
+  // Game invitations
+  sentInvitations       GameInvitation[] @relation("InvitationsSent")
+  receivedInvitations   GameInvitation[] @relation("InvitationsReceived")
+  
   @@map("users")
   @@schema("public")
 }
@@ -62,23 +66,33 @@ model Profile {
 // Game sessions
 model Game {
   id              String      @id @default(uuid()) @db.Uuid
-  title           String      @db.VarChar(100)
+  name            String      @db.VarChar(100)
   description     String?     @db.Text
+  campaignName    String?     @map("campaign_name") @db.VarChar(100)
   system          GameSystem  @default(DND5E)
-  masterId        String      @map("master_id") @db.Uuid
-  isActive        Boolean     @default(true) @map("is_active")
-  maxPlayers      Int         @default(6) @map("max_players")
+  coverImage      String?     @map("cover_image")
+  themeColor      String?     @map("theme_color") @db.VarChar(7)
+  privacy         GamePrivacy @default(PRIVATE)
+  maxPlayers      Int         @default(4) @map("max_players")
+  status          GameStatus  @default(PREPARING)
+  currentSession  Int         @default(0) @map("current_session")
+  nextSession     DateTime?   @map("next_session")
   settings        Json        @default("{}")
+  masterId        String      @map("master_id") @db.Uuid
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
   
   // Relations
   master          User        @relation("GameMaster", fields: [masterId], references: [id], onDelete: Cascade)
   players         GamePlayer[]
+  invitations     GameInvitation[]
   messages        Message[]
   characters      Character[]
   currentlyPlaying UserPresence[]
   
+  @@index([masterId])
+  @@index([status])
+  @@index([privacy])
   @@map("games")
   @@schema("public")
 }
@@ -87,16 +101,19 @@ model Game {
 model GamePlayer {
   id              String      @id @default(uuid()) @db.Uuid
   gameId          String      @map("game_id") @db.Uuid
-  playerId        String      @map("player_id") @db.Uuid
+  userId          String      @map("user_id") @db.Uuid
   role            PlayerRole  @default(PLAYER)
   joinedAt        DateTime    @default(now()) @map("joined_at")
+  lastSeenAt      DateTime    @default(now()) @map("last_seen_at")
   isActive        Boolean     @default(true) @map("is_active")
   
   // Relations
   game            Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  player          User        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  @@unique([gameId, playerId])
+  @@unique([gameId, userId])
+  @@index([gameId])
+  @@index([userId])
   @@map("game_players")
   @@schema("public")
 }
@@ -105,21 +122,66 @@ model GamePlayer {
 model Message {
   id              String      @id @default(uuid()) @db.Uuid
   gameId          String      @map("game_id") @db.Uuid
-  senderId        String      @map("sender_id") @db.Uuid
+  authorId        String      @map("author_id") @db.Uuid
   content         String      @db.Text
-  messageType     MessageType @default(TEXT) @map("message_type")
-  isPrivate       Boolean     @default(false) @map("is_private")
-  recipientId     String?     @map("recipient_id") @db.Uuid
-  diceRoll        Json?       @map("dice_roll")
-  attachmentUrl   String?     @map("attachment_url")
-  createdAt       DateTime    @default(now()) @map("created_at")
+  type            MessageType @default(CHAT)
+  metadata        Json?       // For dice rolls, system messages, etc.
+  isEdited        Boolean     @default(false) @map("is_edited")
   editedAt        DateTime?   @map("edited_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
   
   // Relations
   game            Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  sender          User        @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  author          User        @relation("MessageSender", fields: [authorId], references: [id], onDelete: Cascade)
+  attachments     MessageAttachment[]
   
+  @@index([gameId, createdAt])
+  @@index([authorId])
   @@map("messages")
+  @@schema("public")
+}
+
+// Game invitations
+model GameInvitation {
+  id              String           @id @default(uuid()) @db.Uuid
+  code            String           @unique @default(uuid())
+  type            InvitationType
+  status          InvitationStatus @default(PENDING)
+  expiresAt       DateTime?        @map("expires_at")
+  message         String?          @db.Text
+  createdAt       DateTime         @default(now()) @map("created_at")
+  usedAt          DateTime?        @map("used_at")
+  
+  // Relations
+  gameId          String           @map("game_id") @db.Uuid
+  game            Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  invitedById     String           @map("invited_by_id") @db.Uuid
+  invitedBy       User             @relation("InvitationsSent", fields: [invitedById], references: [id])
+  invitedUserId   String?          @map("invited_user_id") @db.Uuid
+  invitedUser     User?            @relation("InvitationsReceived", fields: [invitedUserId], references: [id])
+  
+  @@index([gameId])
+  @@index([code])
+  @@index([invitedUserId, status])
+  @@map("game_invitations")
+  @@schema("public")
+}
+
+// Message attachments
+model MessageAttachment {
+  id              String         @id @default(uuid()) @db.Uuid
+  type            AttachmentType
+  url             String
+  name            String
+  size            Int            // in bytes
+  mimeType        String?        @map("mime_type")
+  
+  // Relations
+  messageId       String         @map("message_id") @db.Uuid
+  message         Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@index([messageId])
+  @@map("message_attachments")
   @@schema("public")
 }
 
@@ -198,7 +260,7 @@ enum FontSize {
 
 enum GameSystem {
   DND5E
-  PATHFINDER
+  PATHFINDER2E
   CALL_OF_CTHULHU
   VAMPIRE
   CUSTOM
@@ -207,19 +269,19 @@ enum GameSystem {
 }
 
 enum PlayerRole {
+  MASTER
   PLAYER
-  CO_MASTER
-  OBSERVER
+  SPECTATOR
   
   @@schema("public")
 }
 
 enum MessageType {
-  TEXT
+  CHAT
   DICE_ROLL
-  CHARACTER_ACTION
   SYSTEM
-  IMAGE
+  ACTION
+  NARRATION
   
   @@schema("public")
 }
@@ -237,6 +299,53 @@ enum PresenceStatus {
   AWAY
   BUSY
   OFFLINE
+  
+  @@schema("public")
+}
+
+// New enums for Game Core System
+enum GamePrivacy {
+  PRIVATE       // Invite only
+  FRIENDS       // Friends can request to join
+  PUBLIC        // Anyone can join
+  
+  @@schema("public")
+}
+
+enum GameStatus {
+  PREPARING     // Setting up
+  ACTIVE        // In progress
+  PAUSED        // Temporarily paused
+  COMPLETED     // Finished
+  ARCHIVED      // Archived
+  
+  @@schema("public")
+}
+
+enum InvitationType {
+  DIRECT        // Direct invitation to specific user
+  LINK          // Shareable link
+  REQUEST       // Join request from player
+  
+  @@schema("public")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+  
+  @@schema("public")
+}
+
+enum AttachmentType {
+  IMAGE
+  MAP
+  CHARACTER_SHEET
+  HANDOUT
+  AUDIO
   
   @@schema("public")
 }

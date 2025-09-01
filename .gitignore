@@ -41,6 +41,11 @@ yarn-error.log*
 next-env.d.ts
 
 # ai
-.claude/
+.claude/*
 .superdesign/
 /src/generated/prisma
+.playwright-mcp/
+.mcp.json
+.cursor/
+*storybook.log
+storybook-static
