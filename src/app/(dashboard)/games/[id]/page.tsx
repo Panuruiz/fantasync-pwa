@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getGameById } from '@/lib/api/games'
 import { getGameMessages } from '@/lib/api/messages'
@@ -8,7 +8,6 @@ import { useGameStore } from '@/stores/game-store'
 import { useUserStore } from '@/stores/user-store'
 import { useGameChannel } from '@/hooks/use-game-channel'
 import { useGamePresence } from '@/hooks/use-game-presence'
-import type { Game, ChatMessage } from '@/types/game'
 
 // Import components
 import GameLayout from '@/components/game/game-layout'
@@ -35,33 +34,54 @@ export default function GamePage() {
     messageHistory,
     setMessagesForGame,
     isChatOpen,
-    isPlayerListOpen 
+    isPlayerListOpen,
+    togglePlayerList
   } = useGameStore()
   
-  const { id: userId } = useUserStore()
+  const { id: userId, isAuthenticated } = useUserStore()
   
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [userLoaded, setUserLoaded] = useState(false)
+
+  // Wait for user store to be populated
+  useEffect(() => {
+    if (isAuthenticated && userId) {
+      setUserLoaded(true)
+    }
+  }, [isAuthenticated, userId])
 
   // Check if user is part of the game
   const isGameMaster = currentGame?.masterId === userId
-  const isPlayer = currentGame?.players?.some(p => p.userId === userId && p.isActive)
+  const isPlayer = currentGame?.players?.some(p => p.userId === userId && p.isActive) || false
   const hasAccess = isGameMaster || isPlayer
 
+  // Debug logging
+  useEffect(() => {
+    if (currentGame && userId) {
+      console.log('Access check:', {
+        userId,
+        masterId: currentGame.masterId,
+        isGameMaster,
+        players: currentGame.players?.map(p => ({ userId: p.userId, isActive: p.isActive })),
+        isPlayer,
+        hasAccess
+      })
+    }
+  }, [currentGame, userId, isGameMaster, isPlayer, hasAccess])
+
   // Real-time hooks (only activate after we have access)
-  const { isConnected } = useGameChannel(hasAccess ? gameId : null)
+  useGameChannel(hasAccess ? gameId : null)
   useGamePresence(hasAccess ? gameId : null)
 
-  useEffect(() => {
-    loadGame()
-  }, [gameId])
-
-  const loadGame = async () => {
+  const loadGame = useCallback(async () => {
     try {
       setLoading(true)
       setCurrentGameLoading(true)
       setCurrentGameError(null)
       setError(null)
+
+      console.log('Loading game:', gameId, 'for user:', userId)
 
       // Load game data
       const game = await getGameById(gameId)
@@ -69,6 +89,11 @@ export default function GamePage() {
         setError('Game not found')
         return
       }
+
+      console.log('Game loaded:', game)
+      console.log('Game master ID:', game.masterId)
+      console.log('Current user ID:', userId)
+      console.log('Game players:', game.players)
 
       setCurrentGame(game)
 
@@ -78,21 +103,29 @@ export default function GamePage() {
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load game'
+      console.error('Error loading game:', err)
       setError(errorMessage)
       setCurrentGameError(errorMessage)
     } finally {
       setLoading(false)
       setCurrentGameLoading(false)
     }
-  }
+  }, [gameId, userId, setCurrentGame, setCurrentGameLoading, setCurrentGameError, setError, setMessagesForGame])
 
-  if (loading) {
+  useEffect(() => {
+    // Only load game after user is loaded
+    if (userLoaded) {
+      loadGame()
+    }
+  }, [loadGame, userLoaded])
+
+  if (!userLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="p-8">
           <CardContent className="flex items-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span>Loading game...</span>
+            <span>{!userLoaded ? 'Authenticating...' : 'Loading game...'}</span>
           </CardContent>
         </Card>
       </div>

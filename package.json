@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "build-storybook": "storybook build",
     "test": "vitest",
-    "storybook": "storybook dev -p 6006"
+    "storybook": "storybook dev -p 6006",
+    "apply-rls": "node scripts/apply-rls-policies.js",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

@@ -216,26 +216,44 @@
 
 @layer base {
   :root {
-    /* Light theme - shadcn/ui compatible */
-    --background: hsl(0 0% 100%);           /* #FFFFFF */
-    --foreground: hsl(0 0% 9%);             /* #18181B */
-    --card: hsl(0 0% 100%);                 /* #FFFFFF */
-    --card-foreground: hsl(0 0% 9%);        /* #18181B */
-    --popover: hsl(0 0% 100%);              /* #FFFFFF */
-    --popover-foreground: hsl(0 0% 9%);     /* #18181B */
-    --primary: hsl(0 0% 9%);                /* #18181B - primary button bg */
-    --primary-foreground: hsl(0 0% 100%);   /* #FFFFFF */
-    --secondary: hsl(0 0% 96%);             /* #F4F4F5 - secondary button bg */
-    --secondary-foreground: hsl(0 0% 9%);   /* #18181B */
-    --muted: hsl(0 0% 96%);                 /* #F4F4F5 */
-    --muted-foreground: hsl(0 0% 45%);      /* #71717A */
-    --accent: hsl(0 0% 96%);                /* #F4F4F5 */
-    --accent-foreground: hsl(0 0% 9%);      /* #18181B */
-    --destructive: hsl(0 84% 60%);          /* Keep red for destructive */
-    --destructive-foreground: hsl(0 0% 100%);
-    --border: hsl(0 0% 90%);                /* #E4E4E7 */
-    --input: hsl(0 0% 90%);                 /* #E4E4E7 */
-    --ring: hsl(0 0% 64%);                  /* #A1A1AA */
+    /* Light theme - Enhanced with better semantic colors */
+    --background: hsl(0 0% 100%);           /* #FFFFFF - Main app background */
+    --foreground: hsl(0 0% 9%);             /* #171717 - Main text color */
+    
+    /* Card colors */
+    --card: hsl(0 0% 100%);                 /* #FFFFFF - Card background */
+    --card-foreground: hsl(0 0% 9%);        /* #171717 - Card text */
+    
+    /* Popover & Sheet colors - Fixed for proper theming */
+    --popover: hsl(0 0% 100%);              /* #FFFFFF - Popover background */
+    --popover-foreground: hsl(0 0% 9%);     /* #171717 - Popover text */
+    --sheet: hsl(0 0% 100%);                /* #FFFFFF - Sheet background (mobile nav) */
+    --sheet-foreground: hsl(0 0% 9%);       /* #171717 - Sheet text */
+    
+    /* Primary colors - Used for buttons and accents */
+    --primary: hsl(275 80% 50%);            /* #7C3AED - Purple brand color */
+    --primary-foreground: hsl(0 0% 100%);   /* #FFFFFF - Text on primary */
+    
+    /* Secondary colors */
+    --secondary: hsl(0 0% 96%);             /* #F5F5F5 - Secondary button bg */
+    --secondary-foreground: hsl(0 0% 9%);   /* #171717 - Text on secondary */
+    
+    /* Muted colors for subtle backgrounds */
+    --muted: hsl(0 0% 96%);                 /* #F5F5F5 - Muted backgrounds */
+    --muted-foreground: hsl(0 0% 45%);      /* #737373 - Muted text */
+    
+    /* Accent colors */
+    --accent: hsl(275 100% 96%);            /* #F9F5FF - Light purple accent bg */
+    --accent-foreground: hsl(275 80% 40%);  /* #5B21B6 - Dark purple accent text */
+    
+    /* Destructive colors */
+    --destructive: hsl(0 84% 60%);          /* #EF4444 - Red for errors */
+    --destructive-foreground: hsl(0 0% 100%); /* #FFFFFF */
+    
+    /* Border and input colors */
+    --border: hsl(0 0% 90%);                /* #E5E5E5 - Border color */
+    --input: hsl(0 0% 90%);                 /* #E5E5E5 - Input border */
+    --ring: hsl(275 80% 50%);               /* #7C3AED - Focus ring matches primary */
     --radius: 0.375rem;
     
     /* Chart colors */
@@ -247,26 +265,44 @@
   }
   
   .dark {
-    /* Dark theme - shadcn/ui aligned */
-    --background: hsl(0 0% 4%);              /* #09090B */
-    --foreground: hsl(0 0% 98%);             /* #FAFAFA */
-    --card: hsl(0 0% 4%);                    /* #09090B */
-    --card-foreground: hsl(0 0% 98%);        /* #FAFAFA */
-    --popover: hsl(0 0% 4%);                 /* #09090B */
-    --popover-foreground: hsl(0 0% 98%);     /* #FAFAFA */
-    --primary: hsl(0 0% 98%);                /* #FAFAFA - primary button bg in dark */
-    --primary-foreground: hsl(0 0% 4%);      /* #09090B */
-    --secondary: hsl(0 0% 15%);              /* #27272A - secondary button bg in dark */
-    --secondary-foreground: hsl(0 0% 98%);   /* #FAFAFA */
-    --muted: hsl(0 0% 15%);                  /* #27272A */
-    --muted-foreground: hsl(0 0% 64%);       /* #A1A1AA */
-    --accent: hsl(0 0% 15%);                 /* #27272A */
-    --accent-foreground: hsl(0 0% 98%);      /* #FAFAFA */
-    --destructive: hsl(0 62% 30%);           /* Dark red for destructive */
-    --destructive-foreground: hsl(0 0% 98%);
-    --border: hsl(0 0% 15%);                 /* #27272A */
-    --input: hsl(0 0% 15%);                  /* #27272A */
-    --ring: hsl(0 0% 83%);
+    /* Dark theme - Enhanced with purple-tinted neutrals */
+    --background: hsl(270 10% 7%);          /* #0F0E13 - Dark purple-tinted bg */
+    --foreground: hsl(0 0% 95%);            /* #F3F3F3 - Light text */
+    
+    /* Card colors */
+    --card: hsl(270 8% 10%);                /* #17151C - Slightly elevated surface */
+    --card-foreground: hsl(0 0% 95%);       /* #F3F3F3 - Card text */
+    
+    /* Popover & Sheet colors - Fixed for proper theming */
+    --popover: hsl(270 8% 10%);             /* #17151C - Popover background */
+    --popover-foreground: hsl(0 0% 95%);    /* #F3F3F3 - Popover text */
+    --sheet: hsl(270 8% 10%);               /* #17151C - Sheet background (mobile nav) */
+    --sheet-foreground: hsl(0 0% 95%);      /* #F3F3F3 - Sheet text */
+    
+    /* Primary colors - Adjusted for dark mode */
+    --primary: hsl(45 96% 62%);            /* #A78BFA - Lighter purple for dark mode */
+    --primary-foreground: hsl(270 10% 7%);  /* #0F0E13 - Dark text on primary */
+    
+    /* Secondary colors */
+    --secondary: hsl(270 8% 15%);           /* #252329 - Secondary button bg */
+    --secondary-foreground: hsl(0 0% 95%);  /* #F3F3F3 - Text on secondary */
+    
+    /* Muted colors */
+    --muted: hsl(270 8% 15%);               /* #252329 - Muted backgrounds */
+    --muted-foreground: hsl(0 0% 60%);      /* #999999 - Muted text */
+    
+    /* Accent colors */
+    --accent: hsl(45 96% 22%);             /* #3D1E6D - Purple accent bg */
+    --accent-foreground: hsl(45 96% 77%);  /* #C4B5FD - Light purple accent text */
+    
+    /* Destructive colors */
+    --destructive: hsl(0 62% 30%);          /* #7F1D1D - Dark red */
+    --destructive-foreground: hsl(0 0% 95%); /* #F3F3F3 */
+    
+    /* Border and input colors */
+    --border: hsl(270 8% 20%);              /* #322F3A - Purple-tinted border */
+    --input: hsl(270 8% 20%);               /* #322F3A - Input border */
+    --ring: hsl(45 96% 60%);               /* #A78BFA - Focus ring matches primary */
     
     /* Chart colors for dark mode */
     --chart-1: 271 77% 65%;
@@ -663,6 +699,12 @@
   }
   .text-popover-foreground {
     color: var(--popover-foreground);
+  }
+  .bg-sheet {
+    background-color: var(--sheet);
+  }
+  .text-sheet-foreground {
+    color: var(--sheet-foreground);
   }
   .bg-primary {
     background-color: var(--primary);

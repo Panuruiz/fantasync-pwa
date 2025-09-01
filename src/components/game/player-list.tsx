@@ -68,12 +68,13 @@ export default function PlayerList({ game, currentUserId }: PlayerListProps) {
     }
   }
 
-  const formatJoinDate = (date: Date) => {
+  const formatJoinDate = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date
     return new Intl.DateTimeFormat('en-US', { 
       month: 'short', 
       day: 'numeric',
-      year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-    }).format(date)
+      year: dateObj.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    }).format(dateObj)
   }
 
   return (
@@ -111,6 +112,7 @@ export default function PlayerList({ game, currentUserId }: PlayerListProps) {
                 game={game}
                 currentUserId={currentUserId}
                 onKick={handleKickPlayer}
+                formatJoinDate={formatJoinDate}
               />
             </div>
           )}
@@ -129,6 +131,7 @@ export default function PlayerList({ game, currentUserId }: PlayerListProps) {
                     game={game}
                     currentUserId={currentUserId}
                     onKick={handleKickPlayer}
+                    formatJoinDate={formatJoinDate}
                   />
                 ))}
               </div>
@@ -164,9 +167,10 @@ interface PlayerCardProps {
   game: Game
   currentUserId: string
   onKick: (playerId: string) => void
+  formatJoinDate: (date: Date | string) => string
 }
 
-function PlayerCard({ player, game, currentUserId, onKick }: PlayerCardProps) {
+function PlayerCard({ player, game, currentUserId, onKick, formatJoinDate }: PlayerCardProps) {
   const isCurrentUser = player.userId === currentUserId
   const isGameMaster = game.masterId === currentUserId
   const canKick = isGameMaster && !isCurrentUser && player.role !== 'MASTER'
@@ -182,9 +186,9 @@ function PlayerCard({ player, game, currentUserId, onKick }: PlayerCardProps) {
       {/* Avatar with presence indicator */}
       <div className="relative">
         <Avatar className="h-8 w-8">
-          <AvatarImage src={player.user?.avatarUrl} />
+          <AvatarImage src={player.user?.avatarUrl || undefined} />
           <AvatarFallback className="text-xs">
-            {player.user?.username.charAt(0).toUpperCase()}
+            {player.user?.username?.charAt(0)?.toUpperCase() || '?'}
           </AvatarFallback>
         </Avatar>
         <Circle 
@@ -198,7 +202,7 @@ function PlayerCard({ player, game, currentUserId, onKick }: PlayerCardProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium truncate">
-            {player.user?.username}
+            {player.user?.username || 'Unknown Player'}
             {isCurrentUser && ' (You)'}
           </span>
           {player.role === 'MASTER' && (

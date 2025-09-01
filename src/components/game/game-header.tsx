@@ -126,8 +126,7 @@ export default function GameHeader({ game }: GameHeaderProps) {
               />
             ) : (
               <div 
-                className="w-8 h-8 rounded flex items-center justify-center text-white text-sm font-bold"
-                style={{ backgroundColor: game.themeColor || '#6366f1' }}
+                className="w-8 h-8 rounded flex items-center justify-center text-sm font-bold bg-primary text-primary-foreground"
               >
                 {game.name.charAt(0).toUpperCase()}
               </div>

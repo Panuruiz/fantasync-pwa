@@ -24,7 +24,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
         disableTransitionOnChange
       >
         {children}
-        <Toaster richColors position="top-right" />
+        <Toaster 
+          richColors 
+          position="top-center"
+          toastOptions={{
+            duration: 5000,
+            className: 'font-sans',
+            style: {
+              background: 'hsl(var(--background))',
+              color: 'hsl(var(--foreground))',
+              border: '1px solid hsl(var(--border))',
+              zIndex: 500,
+            },
+          }}
+        />
       </ThemeProvider>
     </QueryClientProvider>
   )

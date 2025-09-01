@@ -15,67 +15,93 @@ export async function getUserGames(): Promise<GameSummary[]> {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Not authenticated')
 
-  const { data, error } = await supabase
+  // First, get the game IDs for the user
+  const { data: gamePlayersData, error: gamePlayersError } = await supabase
     .from('game_players')
     .select(`
-      game:games (
+      game_id,
+      game:games!inner (
         id,
-        name,
-        description,
-        system,
-        privacy,
-        status,
-        max_players,
-        cover_image,
-        theme_color,
-        master_id,
-        created_at,
-        updated_at,
-        master:users!games_master_id_fkey (
-          id,
-          username,
-          avatar_url
-        ),
-        players:game_players (
-          user:users (
-            id,
-            username,
-            avatar_url
-          )
-        ),
-        characters (
-          id,
-          name,
-          avatar_url,
-          player_id
-        ),
-        _count:game_players (count),
-        messages (
-          id,
-          created_at,
-          author:users!messages_author_id_fkey (
-            username
-          )
-        )
+        status
       )
     `)
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .order('game.updated_at', { ascending: false })
 
-  if (error) throw error
+  if (gamePlayersError) {
+    console.error('Error fetching game players:', gamePlayersError)
+    throw gamePlayersError
+  }
 
-  return (data || []).map(gamePlayer => {
-    const game = gamePlayer.game
+  // Extract game IDs
+  const gameIds = (gamePlayersData || [])
+    .filter(gp => gp.game_id)
+    .map(gp => gp.game_id)
+
+  if (gameIds.length === 0) {
+    return []
+  }
+
+  // Now fetch full game details for all games
+  const { data: gamesData, error: gamesError } = await supabase
+    .from('games')
+    .select(`
+      id,
+      name,
+      description,
+      system,
+      privacy,
+      status,
+      max_players,
+      cover_image,
+      theme_color,
+      master_id,
+      created_at,
+      updated_at,
+      master:users!games_master_id_fkey (
+        id,
+        username,
+        avatar_url
+      ),
+      players:game_players (
+        user_id,
+        user:users (
+          id,
+          username,
+          avatar_url
+        )
+      ),
+      characters (
+        id,
+        name,
+        avatar_url,
+        player_id
+      ),
+      messages (
+        id,
+        created_at
+      )
+    `)
+    .in('id', gameIds)
+    .order('updated_at', { ascending: false })
+
+  if (gamesError) {
+    console.error('Error fetching games details:', gamesError)
+    throw gamesError
+  }
+
+  return (gamesData || []).map(game => {
     const lastMessage = game.messages?.[0]
+    // Handle the case where relations might be arrays (Supabase PostgREST quirk)
+    const masterData = Array.isArray(game.master) ? game.master[0] : game.master
     
     return {
       id: game.id,
       name: game.name,
       system: game.system as GameSystem,
       masterId: game.master_id,
-      masterName: game.master.username,
-      playerCount: game._count?.count || 0,
+      masterName: masterData?.username || 'Unknown',
+      playerCount: game.players?.length || 0,
       maxPlayers: game.max_players,
       status: game.status as GameStatus,
       privacy: game.privacy as GamePrivacy,
@@ -99,36 +125,7 @@ export async function getGameById(gameId: string): Promise<Game | null> {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) throw new Error('Not authenticated')
 
-  // First check if user has access to this game
-  const { data: playerCheck, error: playerError } = await supabase
-    .from('game_players')
-    .select('id')
-    .eq('game_id', gameId)
-    .eq('user_id', user.id)
-    .eq('is_active', true)
-    .single()
-
-  if (playerError && playerError.code !== 'PGRST116') {
-    throw playerError
-  }
-
-  // Check if user is the master
-  const { data: masterCheck, error: masterError } = await supabase
-    .from('games')
-    .select('id')
-    .eq('id', gameId)
-    .eq('master_id', user.id)
-    .single()
-
-  if (masterError && masterError.code !== 'PGRST116') {
-    throw masterError
-  }
-
-  // If user is not a player or master, deny access
-  if (!playerCheck && !masterCheck) {
-    throw new Error('Access denied')
-  }
-
+  // First, fetch the game data with all relations
   const { data, error } = await supabase
     .from('games')
     .select(`
@@ -145,6 +142,7 @@ export async function getGameById(gameId: string): Promise<Game | null> {
         joined_at,
         last_seen_at,
         is_active,
+        user_id,
         user:users (
           id,
           username,
@@ -176,6 +174,30 @@ export async function getGameById(gameId: string): Promise<Game | null> {
     throw error
   }
 
+  // Check access after fetching the data
+  const isMaster = data.master_id === user.id
+  const isPlayer = data.players?.some((p: any) => p.user_id === user.id && p.is_active) || false
+  
+  // Additional debug info
+  console.log('getGameById - Access check:', {
+    userId: user.id,
+    masterId: data.master_id,
+    isMaster,
+    playersCount: data.players?.length || 0,
+    players: data.players?.map((p: any) => ({ 
+      user_id: p.user_id, 
+      role: p.role,
+      is_active: p.is_active 
+    })),
+    isPlayer,
+    hasAccess: isMaster || isPlayer
+  })
+  
+  if (!isMaster && !isPlayer) {
+    console.error('Access denied for user:', user.id, 'to game:', gameId)
+    throw new Error('Access denied')
+  }
+
   return {
     id: data.id,
     name: data.name,
@@ -197,7 +219,7 @@ export async function getGameById(gameId: string): Promise<Game | null> {
     players: data.players?.map((player: any) => ({
       id: player.id,
       gameId: gameId,
-      userId: player.user.id,
+      userId: player.user_id || player.user?.id, // Handle both cases
       role: player.role,
       joinedAt: new Date(player.joined_at),
       lastSeenAt: new Date(player.last_seen_at),
@@ -242,9 +264,13 @@ export async function createGame(gameData: GameCreationData): Promise<Game> {
       game_id: game.id,
       user_id: user.id,
       role: 'MASTER',
+      is_active: true,
     })
 
-  if (playerError) throw playerError
+  if (playerError) {
+    console.error('Failed to add master as player:', playerError)
+    throw playerError
+  }
 
   // Return full game data
   const fullGame = await getGameById(game.id)
