@@ -35,9 +35,6 @@ import {
   Clock,
   Check,
   X,
-  XIcon,
-  BookOpen,
-  ScrollIcon
 } from 'lucide-react'
 
 interface ChatTimelineProps {
@@ -127,7 +124,7 @@ export default function ChatTimeline({ messages, gameId, userId }: ChatTimelineP
       case 'NARRATION':
         return (
           <div className="text-secondary font-extrabold border-l-2 border-primary pl-3">
-            <ScrollIcon /><span>{message.content}</span>
+            <span>{message.content}</span>
           </div>
         )
       default:
