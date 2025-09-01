@@ -3,6 +3,7 @@ import { DashboardHeader } from '@/components/dashboard/dashboard-header'
 import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton'
 import { BottomNav } from '@/components/dashboard/bottom-nav'
+import { UserProvider } from '@/providers/user-provider'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -10,7 +11,8 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <UserProvider>
+      <div className="min-h-screen bg-background">
       {/* Mobile header */}
       <div className="lg:hidden">
         <DashboardHeader />
@@ -40,5 +42,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Mobile bottom navigation */}
       <BottomNav />
     </div>
+    </UserProvider>
   )
 }

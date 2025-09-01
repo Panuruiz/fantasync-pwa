@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createGame } from '@/lib/api/games'
 import { useGameStore } from '@/stores/game-store'
+import { toast, handleApiError } from '@/lib/utils/toast'
+import { withRLSErrorHandling, getRLSStatusInfo } from '@/lib/utils/rls-helper'
+import { debounce } from '@/lib/utils'
 import type { GameCreationData, GameSystem, GamePrivacy } from '@/types/game'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +16,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { ArrowLeft, ArrowRight, Check, Palette, Users, Dice6, Shield, Eye, EyeOff, Users as UsersIcon } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Palette, Users, Dice6, Shield, Eye, EyeOff, Users as UsersIcon, Loader2, AlertCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const GAME_SYSTEMS: { value: GameSystem; label: string; description: string }[] = [
   { value: 'DND5E', label: 'D&D 5th Edition', description: 'The most popular tabletop RPG system' },
@@ -61,7 +65,8 @@ export default function CreateGamePage() {
   
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
   
   const [gameData, setGameData] = useState<GameCreationData>({
     name: '',
@@ -75,7 +80,110 @@ export default function CreateGamePage() {
 
   const updateGameData = (updates: Partial<GameCreationData>) => {
     setGameData(prev => ({ ...prev, ...updates }))
-    setError(null)
+    // Clear validation errors for updated fields
+    const updatedFields = Object.keys(updates)
+    setValidationErrors(prev => {
+      const newErrors = { ...prev }
+      updatedFields.forEach(field => delete newErrors[field])
+      return newErrors
+    })
+  }
+
+  const validateField = useCallback((field: string, value: any): string | undefined => {
+    switch (field) {
+      case 'name':
+        if (!value || value.trim().length === 0) return 'Game name is required'
+        if (value.trim().length < 3) return 'Game name must be at least 3 characters'
+        if (value.trim().length > 100) return 'Game name must be less than 100 characters'
+        // Check for special characters that might cause issues
+        if (!/^[a-zA-Z0-9\s\-_',.:!?&]+$/.test(value)) {
+          return 'Game name contains invalid characters'
+        }
+        break
+      case 'description':
+        if (value && value.length > 500) return 'Description must be less than 500 characters'
+        break
+      case 'campaignName':
+        if (value && value.length > 100) return 'Campaign name must be less than 100 characters'
+        break
+      case 'coverImage':
+        if (value && !isValidUrl(value)) return 'Please enter a valid URL'
+        if (value && !isValidImageUrl(value)) return 'URL must point to an image (jpg, png, gif, webp)'
+        break
+      case 'maxPlayers':
+        if (value < 2) return 'Minimum 2 players required'
+        if (value > 10) return 'Maximum 10 players allowed'
+        break
+    }
+    return undefined
+  }, [])
+
+  const isValidUrl = (string: string): boolean => {
+    try {
+      const url = new URL(string)
+      return url.protocol === 'http:' || url.protocol === 'https:'
+    } catch (_) {
+      return false
+    }
+  }
+  
+  const isValidImageUrl = (url: string): boolean => {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+    const lowercaseUrl = url.toLowerCase()
+    
+    // Check for common image extensions in the URL
+    const hasExtension = imageExtensions.some(ext => lowercaseUrl.includes(ext))
+    
+    // Also allow known image hosting services that don't always show extensions
+    const knownImageHosts = [
+      'unsplash.com',
+      'pexels.com',
+      'pixabay.com',
+      'cloudinary.com',
+      'imgur.com',
+      'flickr.com',
+      'gravatar.com',
+      'picsum.photos',
+      'placeholder.com',
+      'placehold.co'
+    ]
+    
+    const isKnownHost = knownImageHosts.some(host => lowercaseUrl.includes(host))
+    
+    return hasExtension || isKnownHost
+  }
+
+  // Debounced validation for better performance
+  const debouncedValidate = useMemo(
+    () => debounce((field: string, value: any) => {
+      const error = validateField(field, value)
+      setValidationErrors(prev => {
+        if (error) {
+          return { ...prev, [field]: error }
+        } else {
+          const newErrors = { ...prev }
+          delete newErrors[field]
+          return newErrors
+        }
+      })
+    }, 300),
+    [validateField]
+  )
+  
+  const handleFieldBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }))
+    const error = validateField(field, (gameData as any)[field])
+    if (error) {
+      setValidationErrors(prev => ({ ...prev, [field]: error }))
+    }
+  }
+  
+  const handleFieldChange = (field: string, value: any) => {
+    updateGameData({ [field]: value })
+    // Only validate if field has been touched
+    if (touched[field]) {
+      debouncedValidate(field, value)
+    }
   }
 
   const nextStep = () => {
@@ -93,46 +201,120 @@ export default function CreateGamePage() {
   const canProceed = () => {
     switch (step) {
       case 1:
-        return gameData.name.trim().length > 0
+        const nameError = validateField('name', gameData.name)
+        const descError = validateField('description', gameData.description)
+        const campaignError = validateField('campaignName', gameData.campaignName)
+        return !nameError && !descError && !campaignError && gameData.name.trim().length > 0
       case 2:
-        return true // Visuals are optional
+        const coverError = validateField('coverImage', gameData.coverImage)
+        return !coverError
       case 3:
-        return gameData.maxPlayers >= 2 && gameData.maxPlayers <= 10
+        const maxPlayersError = validateField('maxPlayers', gameData.maxPlayers)
+        return !maxPlayersError
       default:
         return false
     }
   }
 
   const handleSubmit = async () => {
-    if (!canProceed()) return
-
-    try {
-      setLoading(true)
-      setError(null)
-
-      const game = await createGame(gameData)
-      addGame({
-        id: game.id,
-        name: game.name,
-        system: game.system,
-        masterId: game.masterId,
-        masterName: game.master?.username || 'Unknown',
-        playerCount: game.players?.length || 1,
-        maxPlayers: game.maxPlayers,
-        status: game.status,
-        privacy: game.privacy,
-        coverImage: game.coverImage,
-        lastActivity: new Date(),
-        unreadMessages: 0,
-        myCharacters: [],
+    if (!canProceed()) {
+      // Mark all fields as touched to show validation errors
+      setTouched({
+        name: true,
+        description: true,
+        campaignName: true,
+        coverImage: true,
+        maxPlayers: true,
       })
-
-      router.push(`/games/${game.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create game')
-    } finally {
-      setLoading(false)
+      
+      // Validate all fields
+      const errors: Record<string, string> = {}
+      if (!gameData.name) errors.name = 'Game name is required'
+      const nameError = validateField('name', gameData.name)
+      if (nameError) errors.name = nameError
+      
+      setValidationErrors(errors)
+      
+      toast.warning('Please complete all required fields', {
+        description: 'Check the form for validation errors',
+      })
+      return
     }
+
+    const toastId = toast.loading('Creating your game...')
+    let retryCount = 0
+    const maxRetries = 2
+
+    const attemptCreate = async (): Promise<void> => {
+      try {
+        setLoading(true)
+
+        // Use RLS error handling wrapper
+        const game = await withRLSErrorHandling(
+          () => createGame(gameData),
+          {
+            context: 'game creation',
+            onError: (rlsInfo) => {
+              toast.dismiss(toastId)
+              // RLS error is handled by the wrapper
+            },
+          }
+        )
+        
+        addGame({
+          id: game.id,
+          name: game.name,
+          system: game.system,
+          masterId: game.masterId,
+          masterName: game.master?.username || 'Unknown',
+          playerCount: game.players?.length || 1,
+          maxPlayers: game.maxPlayers,
+          status: game.status,
+          privacy: game.privacy,
+          coverImage: game.coverImage,
+          lastActivity: new Date(),
+          unreadMessages: 0,
+          myCharacters: [],
+        })
+
+        toast.dismiss(toastId)
+        toast.success('🎲 Game created successfully!', {
+          description: `"${game.name}" is ready for adventure!`,
+          duration: 3000,
+        })
+
+        // Small delay for toast to be visible
+        setTimeout(() => {
+          router.push(`/games/${game.id}`)
+        }, 500)
+      } catch (err: any) {
+        toast.dismiss(toastId)
+        
+        // Check if it's a network error and we should retry
+        if (
+          retryCount < maxRetries && 
+          (err?.name === 'NetworkError' || 
+           err?.message?.includes('fetch failed') ||
+           err?.code === 'ECONNREFUSED')
+        ) {
+          retryCount++
+          toast.warning(`Connection failed. Retrying... (${retryCount}/${maxRetries})`, {
+            duration: 2000,
+          })
+          
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
+          return attemptCreate()
+        }
+        
+        // Handle the error with enhanced error handling
+        // handleApiError(err, 'game creation')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    await attemptCreate()
   }
 
   const renderStep = () => {
@@ -141,29 +323,78 @@ export default function CreateGamePage() {
         return (
           <div className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Game Name *</Label>
-              <Input
-                id="name"
-                placeholder="Enter your game name"
-                value={gameData.name}
-                onChange={(e) => updateGameData({ name: e.target.value })}
-                maxLength={100}
-              />
-              <p className="text-sm text-muted-foreground">
-                Choose a name that your players will recognize
-              </p>
+              <Label htmlFor="name" className="flex items-center gap-1">
+                Game Name <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="name"
+                  placeholder="Enter your game name"
+                  value={gameData.name}
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
+                  onBlur={() => handleFieldBlur('name')}
+                  maxLength={100}
+                  className={cn(
+                    touched.name && validationErrors.name && "border-red-500 focus:ring-red-500"
+                  )}
+                  aria-invalid={touched.name && !!validationErrors.name}
+                  aria-describedby={touched.name && validationErrors.name ? "name-error" : undefined}
+                />
+                {touched.name && validationErrors.name && (
+                  <AlertCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              {touched.name && validationErrors.name ? (
+                <p id="name-error" className="text-sm text-red-500" role="alert">
+                  {validationErrors.name}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Choose a name that your players will recognize
+                </p>
+              )}
+              <div className={cn(
+                "text-xs text-right transition-colors",
+                gameData.name.length > 90 ? "text-orange-500" : "text-muted-foreground",
+                gameData.name.length >= 100 ? "text-red-500 font-semibold" : ""
+              )}>
+                {gameData.name.length}/100
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe your game world, campaign, or adventure"
-                value={gameData.description || ''}
-                onChange={(e) => updateGameData({ description: e.target.value })}
-                rows={3}
-                maxLength={500}
-              />
+              <div className="relative">
+                <Textarea
+                  id="description"
+                  placeholder="Describe your game world, campaign, or adventure"
+                  value={gameData.description || ''}
+                  onChange={(e) => handleFieldChange('description', e.target.value)}
+                  onBlur={() => handleFieldBlur('description')}
+                  rows={3}
+                  maxLength={500}
+                  className={cn(
+                    touched.description && validationErrors.description && "border-red-500 focus:ring-red-500"
+                  )}
+                  aria-invalid={touched.description && !!validationErrors.description}
+                  aria-describedby={touched.description && validationErrors.description ? "description-error" : undefined}
+                />
+                {touched.description && validationErrors.description && (
+                  <AlertCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              {touched.description && validationErrors.description && (
+                <p id="description-error" className="text-sm text-red-500" role="alert">
+                  {validationErrors.description}
+                </p>
+              )}
+              <div className={cn(
+                "text-xs text-right transition-colors",
+                (gameData.description || '').length > 450 ? "text-orange-500" : "text-muted-foreground",
+                (gameData.description || '').length >= 500 ? "text-red-500 font-semibold" : ""
+              )}>
+                {(gameData.description || '').length}/500
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -250,15 +481,32 @@ export default function CreateGamePage() {
 
             <div className="space-y-2">
               <Label htmlFor="cover">Cover Image URL</Label>
-              <Input
-                id="cover"
-                placeholder="https://example.com/image.jpg"
-                value={gameData.coverImage || ''}
-                onChange={(e) => updateGameData({ coverImage: e.target.value })}
-              />
-              <p className="text-sm text-muted-foreground">
-                Add a cover image to make your game more appealing
-              </p>
+              <div className="relative">
+                <Input
+                  id="cover"
+                  placeholder="https://example.com/image.jpg"
+                  value={gameData.coverImage || ''}
+                  onChange={(e) => handleFieldChange('coverImage', e.target.value)}
+                  onBlur={() => handleFieldBlur('coverImage')}
+                  className={cn(
+                    touched.coverImage && validationErrors.coverImage && "border-red-500 focus:ring-red-500"
+                  )}
+                  aria-invalid={touched.coverImage && !!validationErrors.coverImage}
+                  aria-describedby={touched.coverImage && validationErrors.coverImage ? "cover-error" : undefined}
+                />
+                {touched.coverImage && validationErrors.coverImage && (
+                  <AlertCircle className="absolute right-3 top-3 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              {touched.coverImage && validationErrors.coverImage ? (
+                <p id="cover-error" className="text-sm text-red-500" role="alert">
+                  {validationErrors.coverImage}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Add a cover image to make your game more appealing (jpg, png, gif, webp)
+                </p>
+              )}
             </div>
 
             {gameData.coverImage && (
@@ -397,9 +645,12 @@ export default function CreateGamePage() {
         </CardHeader>
         
         <CardContent>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-              {error}
+          {loading && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Creating your game...</p>
+              </div>
             </div>
           )}
           
@@ -428,8 +679,17 @@ export default function CreateGamePage() {
                 onClick={handleSubmit}
                 disabled={!canProceed() || loading}
               >
-                {loading ? 'Creating...' : 'Create Game'}
-                <Check className="h-4 w-4 ml-2" />
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    Create Game
+                    <Check className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             )}
           </div>

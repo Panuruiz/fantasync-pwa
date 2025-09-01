@@ -16,6 +16,11 @@ const navigation = [
 
 export function BottomNav() {
   const pathname = usePathname()
+  
+  // Hide bottom nav on specific game pages
+  if (pathname.match(/^\/games\/[a-f0-9-]+$/)) {
+    return null
+  }
 
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">

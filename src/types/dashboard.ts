@@ -9,7 +9,7 @@ export interface UserStats {
 
 export interface GameSummary {
   id: string
-  title: string
+  name: string
   system: string
   masterId: string
   masterName: string
@@ -45,7 +45,7 @@ export interface Friend {
   status: 'online' | 'away' | 'busy' | 'offline'
   statusMessage?: string
   currentGameId?: string
-  currentGameTitle?: string
+  currentGameName?: string
 }
 
 export interface FriendRequest {
@@ -81,7 +81,7 @@ export interface DashboardData {
 export interface GameInvitation {
   id: string
   gameId: string
-  gameTitle: string
+  gameName: string
   masterName: string
   invitedAt: Date
 }

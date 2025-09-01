@@ -34,7 +34,10 @@ import {
   Crown, 
   Clock,
   Check,
-  X
+  X,
+  XIcon,
+  BookOpen,
+  ScrollIcon
 } from 'lucide-react'
 
 interface ChatTimelineProps {
@@ -117,18 +120,18 @@ export default function ChatTimeline({ messages, gameId, userId }: ChatTimelineP
         return <SystemMessage message={message} />
       case 'ACTION':
         return (
-          <div className="italic text-primary">
+          <div className="italic">
             <span className="font-medium">{message.author.username}</span> {message.content}
           </div>
         )
       case 'NARRATION':
         return (
-          <div className="text-muted-foreground border-l-2 border-primary pl-3">
-            {message.content}
+          <div className="text-secondary font-extrabold border-l-2 border-primary pl-3">
+            <ScrollIcon /><span>{message.content}</span>
           </div>
         )
       default:
-        return <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        return <span className="whitespace-pre-wrap break-words">{message.content}</span>
     }
   }
 
@@ -341,7 +344,7 @@ function DiceRollMessage({ message }: { message: ChatMessage }) {
         <Dice6 className="h-4 w-4" />
         <span className="font-medium">Dice Roll</span>
         {metadata.reason && (
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="secondary" className="text-xs">
             {metadata.reason}
           </Badge>
         )}

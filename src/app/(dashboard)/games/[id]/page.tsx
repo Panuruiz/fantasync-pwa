@@ -38,15 +38,37 @@ export default function GamePage() {
     togglePlayerList
   } = useGameStore()
   
-  const { id: userId } = useUserStore()
+  const { id: userId, isAuthenticated } = useUserStore()
   
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [userLoaded, setUserLoaded] = useState(false)
+
+  // Wait for user store to be populated
+  useEffect(() => {
+    if (isAuthenticated && userId) {
+      setUserLoaded(true)
+    }
+  }, [isAuthenticated, userId])
 
   // Check if user is part of the game
   const isGameMaster = currentGame?.masterId === userId
-  const isPlayer = currentGame?.players?.some(p => p.userId === userId && p.isActive)
+  const isPlayer = currentGame?.players?.some(p => p.userId === userId && p.isActive) || false
   const hasAccess = isGameMaster || isPlayer
+
+  // Debug logging
+  useEffect(() => {
+    if (currentGame && userId) {
+      console.log('Access check:', {
+        userId,
+        masterId: currentGame.masterId,
+        isGameMaster,
+        players: currentGame.players?.map(p => ({ userId: p.userId, isActive: p.isActive })),
+        isPlayer,
+        hasAccess
+      })
+    }
+  }, [currentGame, userId, isGameMaster, isPlayer, hasAccess])
 
   // Real-time hooks (only activate after we have access)
   useGameChannel(hasAccess ? gameId : null)
@@ -59,12 +81,19 @@ export default function GamePage() {
       setCurrentGameError(null)
       setError(null)
 
+      console.log('Loading game:', gameId, 'for user:', userId)
+
       // Load game data
       const game = await getGameById(gameId)
       if (!game) {
         setError('Game not found')
         return
       }
+
+      console.log('Game loaded:', game)
+      console.log('Game master ID:', game.masterId)
+      console.log('Current user ID:', userId)
+      console.log('Game players:', game.players)
 
       setCurrentGame(game)
 
@@ -74,25 +103,29 @@ export default function GamePage() {
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load game'
+      console.error('Error loading game:', err)
       setError(errorMessage)
       setCurrentGameError(errorMessage)
     } finally {
       setLoading(false)
       setCurrentGameLoading(false)
     }
-  }, [gameId, setCurrentGame, setCurrentGameLoading, setCurrentGameError, setError, setMessagesForGame])
+  }, [gameId, userId, setCurrentGame, setCurrentGameLoading, setCurrentGameError, setError, setMessagesForGame])
 
   useEffect(() => {
-    loadGame()
-  }, [loadGame])
+    // Only load game after user is loaded
+    if (userLoaded) {
+      loadGame()
+    }
+  }, [loadGame, userLoaded])
 
-  if (loading) {
+  if (!userLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="p-8">
           <CardContent className="flex items-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span>Loading game...</span>
+            <span>{!userLoaded ? 'Authenticating...' : 'Loading game...'}</span>
           </CardContent>
         </Card>
       </div>

@@ -19,7 +19,7 @@ export function GameCard({ game }: GameCardProps) {
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="space-y-1">
-            <h3 className="font-semibold text-lg">{game.title}</h3>
+            <h3 className="font-semibold text-lg">{game.name}</h3>
             <p className="text-sm text-muted-foreground">
               DM: {game.masterName}
             </p>
@@ -76,12 +76,12 @@ export function GameCard({ game }: GameCardProps) {
       <CardFooter className="p-6 pt-0">
         <div className="flex space-x-2 w-full">
           <Button asChild className="flex-1">
-            <Link href={`/game/${game.id}`}>
+            <Link href={`/games/${game.id}`}>
               Continue Playing
             </Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href={`/game/${game.id}/info`}>
+            <Link href={`/games/${game.id}/info`}>
               View Details
             </Link>
           </Button>
