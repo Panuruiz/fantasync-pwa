@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import React from "react"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -97,4 +98,72 @@ export async function retry<T>(
   }
   
   throw lastError!
+}
+
+/**
+ * Memoize function - caches the results of function calls based on arguments
+ * Useful for expensive calculations that are called repeatedly with the same inputs
+ */
+export function memoize<TArgs extends any[], TResult>(
+  fn: (...args: TArgs) => TResult,
+  options: {
+    maxSize?: number
+    keyFn?: (...args: TArgs) => string
+    ttl?: number // Time to live in milliseconds
+  } = {}
+): (...args: TArgs) => TResult {
+  const { maxSize = 100, keyFn = JSON.stringify, ttl } = options
+  const cache = new Map<string, { value: TResult; timestamp?: number }>()
+  
+  return function memoized(...args: TArgs): TResult {
+    const key = keyFn(...args)
+    
+    if (cache.has(key)) {
+      const cached = cache.get(key)!
+      
+      // Check if TTL has expired
+      if (ttl && cached.timestamp) {
+        const elapsed = Date.now() - cached.timestamp
+        if (elapsed > ttl) {
+          cache.delete(key)
+        } else {
+          return cached.value
+        }
+      } else {
+        return cached.value
+      }
+    }
+    
+    const result = fn(...args)
+    
+    // Implement LRU cache eviction
+    if (cache.size >= maxSize) {
+      const firstKey = cache.keys().next().value
+      cache.delete(firstKey)
+    }
+    
+    cache.set(key, {
+      value: result,
+      timestamp: ttl ? Date.now() : undefined
+    })
+    
+    return result
+  }
+}
+
+/**
+ * Create a lazy-loaded component wrapper for Next.js dynamic imports
+ */
+export function lazyLoad<T extends React.ComponentType<any>>(
+  importFn: () => Promise<{ default: T }>,
+  fallback?: React.ReactNode
+) {
+  const LazyComponent = React.lazy(importFn)
+  
+  return (props: React.ComponentProps<T>) => 
+    React.createElement(
+      React.Suspense, 
+      { fallback: fallback || React.createElement('div', null, 'Loading...') },
+      React.createElement(LazyComponent, props)
+    )
 }

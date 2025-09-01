@@ -31,6 +31,8 @@ model User {
   gameParticipations GamePlayer[]
   sentMessages    Message[] @relation("MessageSender")
   characters      Character[]
+  notes           Note[]
+  changeLogs      ChangeLog[]
   
   // Friend relationships
   sentFriendRequests     FriendRelationship[] @relation("FriendRequester")
@@ -88,6 +90,8 @@ model Game {
   invitations     GameInvitation[]
   messages        Message[]
   characters      Character[]
+  combats         Combat[]
+  notes           Note[]
   currentlyPlaying UserPresence[]
   
   @@index([masterId])
@@ -185,24 +189,177 @@ model MessageAttachment {
   @@schema("public")
 }
 
-// Character sheets
+// D&D 5e Character sheets
 model Character {
-  id              String      @id @default(uuid()) @db.Uuid
-  gameId          String      @map("game_id") @db.Uuid
-  playerId        String      @map("player_id") @db.Uuid
-  name            String      @db.VarChar(50)
-  avatarUrl       String?     @map("avatar_url")
-  data            Json        @default("{}")  // Character sheet data as JSON
-  isActive        Boolean     @default(true) @map("is_active")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  id                String   @id @default(uuid()) @db.Uuid
+  gameId            String   @map("game_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  name              String   @db.VarChar(50)
+  race              String   @db.VarChar(50)
+  class             Json     // Array for multiclass: [{name: string, level: number, hitDie: string}]
+  level             Int      @default(1)
+  background        String?  @db.VarChar(50)
+  alignment         String?  @db.VarChar(30)
+  
+  // Ability Scores
+  strength          Int      @default(10)
+  dexterity         Int      @default(10)
+  constitution      Int      @default(10)
+  intelligence      Int      @default(10)
+  wisdom            Int      @default(10)
+  charisma          Int      @default(10)
+  
+  // Combat Stats
+  armorClass        Int      @default(10)
+  initiative        Int      @default(0)
+  speed             Int      @default(30)
+  maxHitPoints      Int      @default(1)
+  currentHitPoints  Int      @default(1)
+  tempHitPoints     Int      @default(0)
+  hitDice           Json     // {total: string, current: number} e.g. {"1d8": {total: 3, current: 1}}
+  
+  // Saves & Skills
+  proficiencyBonus  Int      @default(2)
+  savingThrows      Json     // {str: boolean, dex: boolean, con: boolean, int: boolean, wis: boolean, cha: boolean}
+  skills            Json     // {acrobatics: {proficient: boolean, expertise: boolean}, ...}
+  
+  // Features & Traits
+  features          Json     // Array of class/racial features
+  traits            Json     // Racial traits and other character traits
+  languages         String[] @default([])
+  proficiencies     Json     // {armor: [], weapons: [], tools: []}
+  
+  // Spellcasting
+  spellcastingAbility String?
+  spellSaveDC       Int?
+  spellAttackBonus  Int?
+  spellSlots        Json?    // {1: {total: 0, used: 0}, 2: {total: 0, used: 0}, ...}
+  spellsKnown       Json?    // Array of spell objects
+  
+  // Equipment
+  equipment         Json     @default("[]") // Array of items
+  currency          Json     @default("{\"cp\": 0, \"sp\": 0, \"ep\": 0, \"gp\": 0, \"pp\": 0}")
+  
+  // Backstory
+  personalityTraits String?  @db.Text
+  ideals            String?  @db.Text
+  bonds             String?  @db.Text
+  flaws             String?  @db.Text
+  backstory         String?  @db.Text
+  
+  // Metadata
+  avatarUrl         String?  @map("avatar_url")
+  isPublic          Boolean  @default(false)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
   
   // Relations
-  game            Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  player          User        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  game              Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  combatParticipant CombatParticipant[]
   
-  @@unique([gameId, playerId, name])
+  @@index([gameId])
+  @@index([userId])
+  @@unique([gameId, userId, name])
   @@map("characters")
+  @@schema("public")
+}
+
+// Combat/Turn Control System
+model Combat {
+  id                String   @id @default(uuid()) @db.Uuid
+  gameId            String   @map("game_id") @db.Uuid
+  name              String   @db.VarChar(100)
+  round             Int      @default(1)
+  currentTurn       Int      @default(0)
+  isActive          Boolean  @default(true)
+  isPaused          Boolean  @default(false)
+  turnTimer         Int?     // Seconds per turn
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  game              Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  participants      CombatParticipant[]
+  
+  @@index([gameId])
+  @@map("combats")
+  @@schema("public")
+}
+
+model CombatParticipant {
+  id                String   @id @default(uuid()) @db.Uuid
+  combatId          String   @map("combat_id") @db.Uuid
+  characterId       String?  @map("character_id") @db.Uuid
+  npcName           String?  @map("npc_name") // For NPCs without character sheet
+  initiative        Int
+  initiativeRoll    Int      @map("initiative_roll") // Original roll for tiebreakers
+  currentHP         Int?     @map("current_hp")
+  maxHP             Int?     @map("max_hp")
+  armorClass        Int?     @map("armor_class")
+  conditions        Json?    @default("[]") // Array of active conditions
+  isNPC             Boolean  @default(false) @map("is_npc")
+  isVisible         Boolean  @default(true) @map("is_visible")
+  turnOrder         Int      @map("turn_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  combat            Combat   @relation(fields: [combatId], references: [id], onDelete: Cascade)
+  character         Character? @relation(fields: [characterId], references: [id])
+  
+  @@index([combatId])
+  @@index([characterId])
+  @@map("combat_participants")
+  @@schema("public")
+}
+
+// Notes System
+model Note {
+  id                String   @id @default(uuid()) @db.Uuid
+  gameId            String   @map("game_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  title             String   @db.VarChar(200)
+  content           String   @db.Text
+  category          String?  @db.VarChar(50) // NPCs, Places, Quests, etc.
+  tags              String[] @default([])
+  isPublic          Boolean  @default(false) @map("is_public") // Master handouts
+  sharedWith        String[] @default([]) @map("shared_with") // User IDs with access
+  attachments       Json?    @default("[]") // URLs of images/files
+  linkedMessages    String[] @default([]) @map("linked_messages") // Message IDs
+  version           Int      @default(1)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  game              Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([gameId])
+  @@index([userId])
+  @@index([category])
+  @@index([isPublic])
+  @@map("notes")
+  @@schema("public")
+}
+
+// Change log for tracking modifications
+model ChangeLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  entityType        String   @map("entity_type") @db.VarChar(50) // 'character', 'note', etc.
+  entityId          String   @map("entity_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  changes           Json     // Diff of changes
+  previousValue     Json?    @map("previous_value")
+  newValue          Json?    @map("new_value")
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user              User     @relation(fields: [userId], references: [id])
+  
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("change_logs")
   @@schema("public")
 }
 

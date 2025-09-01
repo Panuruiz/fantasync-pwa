@@ -16,7 +16,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 async function applyPolicies() {
   try {
     console.log('Reading RLS policies SQL file...');
-    const sqlPath = path.join(__dirname, '..', 'supabase', 'policies', 'rls-policies.sql');
+    const sqlPath = path.join(__dirname, 'create-rls-policies.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
     
     // Split SQL into individual statements

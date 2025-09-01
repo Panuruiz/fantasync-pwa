@@ -75,7 +75,7 @@ export async function getUserGames(): Promise<GameSummary[]> {
         id,
         name,
         avatar_url,
-        player_id
+        user_id
       ),
       messages (
         id,
@@ -109,7 +109,7 @@ export async function getUserGames(): Promise<GameSummary[]> {
       lastActivity: lastMessage ? new Date(lastMessage.created_at) : new Date(game.updated_at),
       unreadMessages: 0, // TODO: Implement read tracking
       myCharacters: (game.characters || [])
-        .filter(char => char.player_id === user.id)
+        .filter(char => char.user_id === user.id)
         .map(char => ({
           id: char.id,
           name: char.name,
@@ -154,12 +154,11 @@ export async function getGameById(gameId: string): Promise<Game | null> {
         id,
         name,
         avatar_url,
-        data,
-        player_id,
+        user_id,
         is_active,
         created_at,
         updated_at,
-        player:users (
+        user:users (
           id,
           username,
           avatar_url
